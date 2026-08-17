@@ -16,8 +16,6 @@ jobs:
 
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@master
-        with:
-          args: --severity=warning
 
   test-systems:
     name: Test Init Detection
@@ -29,20 +27,20 @@ jobs:
       - name: Test Systemd Environment (Ubuntu)
         run: |
           docker run --rm -v ${{ github.workspace }}:/app ubuntu:latest bash -c "
-            apt-get update && apt-get install -y git python3 systemd
+            apt-get update && apt-get install -y git python3 systemd sudo
             bash /app/fix-ryzen.sh
           "
 
       - name: Test Runit Environment (Void Linux)
         run: |
           docker run --rm -v ${{ github.workspace }}:/app voidlinux/voidlinux bash -c "
-            xbps-install -Sy git python3
+            xbps-install -Sy git python3 sudo
             bash /app/fix-ryzen.sh
           "
 
       - name: Test OpenRC Environment (Alpine)
         run: |
           docker run --rm -v ${{ github.workspace }}:/app alpine:latest sh -c "
-            apk add --no-cache bash git python3 openrc
+            apk add --no-cache bash git python3 openrc sudo
             bash /app/fix-ryzen.sh
           "

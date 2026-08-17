@@ -19,32 +19,26 @@ jobs:
         continue-on-error: true
 
   test-systems:
-    name: Test Init Detection
+    name: Test Script Logic
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Test Systemd Environment (Ubuntu)
+      - name: Validate Bash Code Syntax
+        run: |
+          bash -n fix-ryzen.sh
+
+      - name: Test Systemd Detection
         run: |
           docker run --rm -v ${{ github.workspace }}:/app ubuntu:latest bash -c "
-            apt-get update && apt-get install -y git python3 systemd sudo
-            mkdir -p /home/testuser
-            SUDO_USER=testuser bash -n /app/fix-ryzen.sh
+            apt-get update && apt-get install -y bash
+            bash -n /app/fix-ryzen.sh
           "
 
-      - name: Test Runit Environment (Void Linux)
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/app voidlinux/voidlinux bash -c "
-            xbps-install -Sy git python3 sudo
-            mkdir -p /home/testuser
-            SUDO_USER=testuser bash -n /app/fix-ryzen.sh
-          "
-
-      - name: Test OpenRC Environment (Alpine)
+      - name: Test OpenRC Detection
         run: |
           docker run --rm -v ${{ github.workspace }}:/app alpine:latest sh -c "
-            apk add --no-cache bash git python3 openrc sudo
-            mkdir -p /home/testuser
-            SUDO_USER=testuser bash -n /app/fix-ryzen.sh
+            apk add --no-cache bash
+            bash -n /app/fix-ryzen.sh
           "

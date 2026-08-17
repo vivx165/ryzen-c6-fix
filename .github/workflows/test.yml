@@ -1,69 +1,48 @@
-#!/bin/bash
-set -e
+name: Test Ryzen C6 Fix Script
 
-CURRENT_USER="${SUDO_USER:-$USER}"
-TARGET_DIR="/home/$CURRENT_USER/ZenStates-Linux"
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
-if [ ! -d "$TARGET_DIR" ]; then
-    git clone https://github.com/r4m0n/ZenStates-Linux "$TARGET_DIR"
-    chown -R "$CURRENT_USER:$CURRENT_USER" "$TARGET_DIR"
-fi
+jobs:
+  shellcheck:
+    name: Check Script Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-sudo modprobe msr
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          args: --severity=warning
 
-if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-    cat << EOF | sudo tee /etc/systemd/system/disable-c6.service > /dev/null
-[Unit]
-Description=Disable Ryzen C6 State
-After=multi-user.target
+  test-systems:
+    name: Test Init Detection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/python3 $TARGET_DIR/zenstates.py --c6-disable
-RemainAfterExit=yes
+      - name: Test Systemd Environment (Ubuntu)
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/app ubuntu:latest bash -c "
+            apt-get update && apt-get install -y git python3 systemd
+            bash /app/fix-ryzen.sh
+          "
 
-[Install]
-WantedBy=multi-user.target
-EOF
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now disable-c6.service
+      - name: Test Runit Environment (Void Linux)
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/app voidlinux/voidlinux bash -c "
+            xbps-install -Sy git python3
+            bash /app/fix-ryzen.sh
+          "
 
-elif [ -d /etc/sv ]; then
-    sudo mkdir -p /etc/sv/disable-c6
-    cat << EOF | sudo tee /etc/sv/disable-c6/run > /dev/null
-#!/bin/sh
-modprobe msr
-exec /usr/bin/python3 $TARGET_DIR/zenstates.py --c6-disable
-EOF
-    sudo chmod +x /etc/sv/disable-c6/run
-    sudo ln -sf /etc/sv/disable-c6 /var/service/
-
-elif command -v rc-update >/dev/null 2>&1; then
-    cat << EOF | sudo tee /etc/init.d/disable-c6 > /dev/null
-#!/sbin/openrc-run
-description="Disable Ryzen C6 State"
-command="/usr/bin/python3"
-command_args="$TARGET_DIR/zenstates.py --c6-disable"
-
-depend() {
-    after modules
-}
-start_pre() {
-    modprobe msr
-}
-EOF
-    sudo chmod +x /etc/init.d/disable-c6
-    sudo rc-update add disable-c6 default
-    sudo rc-service disable-c6 start
-
-else
-    if [ ! -f /etc/rc.local ]; then
-        echo -e "#!/bin/sh\nexit 0" | sudo tee /etc/rc.local > /dev/null
-        sudo chmod +x /etc/rc.local
-    fi
-    
-    sudo sed -i '/exit 0/i modprobe msr' /etc/rc.local
-    sudo sed -i "/exit 0/i /usr/bin/python3 $TARGET_DIR/zenstates.py --c6-disable" /etc/rc.local
-fi
-
-echo "Done! C6 state disabled successfully for $CURRENT_USER"
+      - name: Test OpenRC Environment (Alpine)
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/app alpine:latest sh -c "
+            apk add --no-cache bash git python3 openrc
+            bash /app/fix-ryzen.sh
+          "
